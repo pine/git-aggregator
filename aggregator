@@ -1,0 +1,93 @@
+#!/bin/bash
+
+set -eu -o pipefail
+
+declare -r COMMITS_TMP=commits.tmp
+declare -r COMMITS_RESULT=commits.csv
+declare -r DIFF_TMP=diff.tmp
+declare -r DIFF_RESULT=diff.csv
+
+cd $(cd ${BASH_SOURCE%/*}; pwd)
+. config.bash
+
+
+
+#
+# Aggregate commit count
+#
+
+# rm -f $COMMITS_TMP
+# rm -f $COMMITS_RESULT
+
+# for repo in ${REPOS[@]}; do
+#   printf "."
+#   GIT_DIR=$repo/.git git log --date=short --pretty=format:'%cd %an' >> $COMMITS_TMP
+# done
+
+# grep_cmd=grep
+# for author in ${AUTHORS[@]}; do
+#   grep_cmd="$grep_cmd -e $author"
+# done
+
+# $grep_cmd $COMMITS_TMP \
+#   | cut -d ' ' -f1 \
+#   | cut -d '-' -f1,2 \
+#   | sort \
+#   | uniq -c \
+#   | sed -e 's/ *\([0-9]*\) *\([0-9-]*\)/\2,\1/' \
+#   | sort > $COMMITS_RESULT
+
+
+
+#
+# Aggregate diff count
+#
+
+# rm -f $DIFF_TMP
+# rm -f $DIFF_RESULT
+
+# for repo in ${REPOS[@]}; do
+#   printf "."
+#   GIT_DIR=$repo/.git git log --date=short --numstat --no-merges --pretty=format:'%cd %an' >> $DIFF_TMP
+#   printf "\n" >> $DIFF_TMP
+# done
+
+in_commit=0
+author_matched=0
+cat $DIFF_TMP | while read line; do
+  if [ $in_commit = 1 ]; then
+    # empty line
+    if [ -z "$line" ]; then
+      in_commit=0
+      continue
+    fi
+
+    # other author
+    if [ $author_matched = 0 ]; then
+      continue
+    fi
+
+    # format: "5	1	file"
+    if [[ $line =~ ([0-9]+)[[:blank:]]+([0-9]+) ]]; then
+      echo ${BASH_REMATCH[1]} ${BASH_REMATCH[2]}
+    fi
+  else
+    # format: "YYYY-MM-DD author"
+    if [[ $line =~ ([0-9]+-[0-9]+-[0-9]+) ]]; then
+      in_commit=1
+
+      author_matched=0
+      for author in ${AUTHORS[@]}; do
+        if [[ $line =~ $author ]]; then
+          author_matched=1
+          break
+        fi
+      done
+    fi
+  fi
+done
+
+
+printf "\n\e[32msuccess\e[39m\n"
+
+# vim: se sw=2 ts=2 sts=2 et :
