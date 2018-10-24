@@ -1,3 +1,4 @@
 *.csv
 *.tmp
+*.tmp.*
 config.bash

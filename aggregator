@@ -4,7 +4,8 @@ set -eu -o pipefail
 
 declare -r COMMITS_TMP=commits.tmp
 declare -r COMMITS_RESULT=commits.csv
-declare -r DIFF_TMP=diff.tmp
+declare -r DIFF_TMP_1=diff.tmp.1
+declare -r DIFF_TMP_2=diff.tmp.2
 declare -r DIFF_RESULT=diff.csv
 
 cd $(cd ${BASH_SOURCE%/*}; pwd)
@@ -43,18 +44,21 @@ cd $(cd ${BASH_SOURCE%/*}; pwd)
 # Aggregate diff count
 #
 
-# rm -f $DIFF_TMP
-# rm -f $DIFF_RESULT
+rm -f $DIFF_TMP_1
+rm -f $DIFF_TMP_2
+rm -f $DIFF_RESULT
 
-# for repo in ${REPOS[@]}; do
-#   printf "."
-#   GIT_DIR=$repo/.git git log --date=short --numstat --no-merges --pretty=format:'%cd %an' >> $DIFF_TMP
-#   printf "\n" >> $DIFF_TMP
-# done
+for repo in ${REPOS[@]}; do
+  printf "."
+  GIT_DIR=$repo/.git git log --date=short --numstat --no-merges --pretty=format:'%cd %an' >> $DIFF_TMP_1
+  printf "\n" >> $DIFF_TMP_1
+done
 
 in_commit=0
 author_matched=0
-cat $DIFF_TMP | while read line; do
+date=""
+
+cat $DIFF_TMP_1 | while read line; do
   if [ $in_commit = 1 ]; then
     # empty line
     if [ -z "$line" ]; then
@@ -69,7 +73,7 @@ cat $DIFF_TMP | while read line; do
 
     # format: "5	1	file"
     if [[ $line =~ ([0-9]+)[[:blank:]]+([0-9]+) ]]; then
-      echo ${BASH_REMATCH[1]} ${BASH_REMATCH[2]}
+      echo ${BASH_REMATCH[1]} ${BASH_REMATCH[2]} >> $DIFF_TMP_2
     fi
   else
     # format: "YYYY-MM-DD author"
@@ -79,6 +83,7 @@ cat $DIFF_TMP | while read line; do
       author_matched=0
       for author in ${AUTHORS[@]}; do
         if [[ $line =~ $author ]]; then
+          printf "."
           author_matched=1
           break
         fi
@@ -86,6 +91,7 @@ cat $DIFF_TMP | while read line; do
     fi
   fi
 done
+
 
 
 printf "\n\e[32msuccess\e[39m\n"
