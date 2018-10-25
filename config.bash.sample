@@ -1,0 +1,13 @@
+# config.bash
+
+declare -r -a AUTHORS=(
+  Akemi
+  Homura
+  Homuhomu
+)
+
+declare -r -a REPOS=(
+  ~/project/homura/qb-killer
+  ~/project/homura/bomb
+  ~/project/homura/homuhome
+)

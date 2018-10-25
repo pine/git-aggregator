@@ -13,30 +13,35 @@ cd $(cd ${BASH_SOURCE%/*}; pwd)
 
 
 
+
 #
 # Aggregate commit count
 #
 
-# rm -f $COMMITS_TMP
-# rm -f $COMMITS_RESULT
+rm -f $COMMITS_TMP
 
-# for repo in ${REPOS[@]}; do
-#   printf "."
-#   GIT_DIR=$repo/.git git log --date=short --pretty=format:'%cd %an' >> $COMMITS_TMP
-# done
+for repo in ${REPOS[@]}; do
+  printf "."
+  GIT_DIR=$repo/.git git log --date=short --pretty=format:'%cd %an' >> $COMMITS_TMP
+done
 
-# grep_cmd=grep
-# for author in ${AUTHORS[@]}; do
-#   grep_cmd="$grep_cmd -e $author"
-# done
 
-# $grep_cmd $COMMITS_TMP \
-#   | cut -d ' ' -f1 \
-#   | cut -d '-' -f1,2 \
-#   | sort \
-#   | uniq -c \
-#   | sed -e 's/ *\([0-9]*\) *\([0-9-]*\)/\2,\1/' \
-#   | sort > $COMMITS_RESULT
+rm -f $COMMITS_RESULT
+echo "Month,Count of commits" > $COMMITS_RESULT
+
+grep_cmd=grep
+for author in ${AUTHORS[@]}; do
+  grep_cmd="$grep_cmd -e $author"
+done
+
+$grep_cmd $COMMITS_TMP \
+  | cut -d ' ' -f1 \
+  | cut -d '-' -f1,2 \
+  | sort \
+  | uniq -c \
+  | sed -e 's/ *\([0-9]*\) *\([0-9-]*\)/\2,\1/' \
+  | sort >> $COMMITS_RESULT
+
 
 
 
@@ -45,8 +50,6 @@ cd $(cd ${BASH_SOURCE%/*}; pwd)
 #
 
 rm -f $DIFF_TMP_1
-rm -f $DIFF_TMP_2
-rm -f $DIFF_RESULT
 
 for repo in ${REPOS[@]}; do
   printf "."
@@ -54,9 +57,12 @@ for repo in ${REPOS[@]}; do
   printf "\n" >> $DIFF_TMP_1
 done
 
+
 in_commit=0
 author_matched=0
 date=""
+
+rm -f $DIFF_TMP_2
 
 cat $DIFF_TMP_1 | while read line; do
   if [ $in_commit = 1 ]; then
@@ -73,16 +79,17 @@ cat $DIFF_TMP_1 | while read line; do
 
     # format: "5	1	file"
     if [[ $line =~ ([0-9]+)[[:blank:]]+([0-9]+) ]]; then
-      echo ${BASH_REMATCH[1]} ${BASH_REMATCH[2]} >> $DIFF_TMP_2
+      echo "$date ${BASH_REMATCH[1]} ${BASH_REMATCH[2]}" >> $DIFF_TMP_2
     fi
   else
     # format: "YYYY-MM-DD author"
     if [[ $line =~ ([0-9]+-[0-9]+-[0-9]+) ]]; then
       in_commit=1
+      date=${BASH_REMATCH[1]}
 
       author_matched=0
       for author in ${AUTHORS[@]}; do
-        if [[ $line =~ $author ]]; then
+        if [[ "$line" =~ $author ]]; then
           printf "."
           author_matched=1
           break
@@ -91,6 +98,46 @@ cat $DIFF_TMP_1 | while read line; do
     fi
   fi
 done
+
+
+target=""
+declare -i add_total=0
+declare -i remove_total=0
+
+rm -f $DIFF_RESULT
+echo "Month,Additional lines,Deleted lines" > $DIFF_RESULT
+
+while read line; do
+  printf "."
+  if [ -z "$line" ]; then
+    continue
+  fi
+
+  # format: "YYYY-MM-DD 5 1"
+  if [[ "$line" =~ ([0-9]+-[0-9]+) ]]; then
+    month=${BASH_REMATCH[1]}
+  else
+    continue
+  fi
+  add="$(echo "$line" | cut -d ' ' -f2)"
+  remove="$(echo "$line" | cut -d ' ' -f3)"
+
+  if [ "$target" == "$month" ]; then
+    add_total=$(($add_total + $add))
+    remove_total=$(($remove_total + $remove))
+  else
+    if [ -n "$target" ]; then
+      echo "$target,$add_total,$remove_total" >> $DIFF_RESULT
+    fi
+    target=$month
+    add_total=$add
+    remove_total=$remove
+  fi
+done < <(cat $DIFF_TMP_2 | sort)
+
+if [ -n "$target" ]; then
+  echo "$target,$add_total,$remove_total" >> $DIFF_RESULT
+fi
 
 
 
